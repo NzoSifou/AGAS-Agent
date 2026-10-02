@@ -96,6 +96,7 @@ class CloseButtonFinder(private val rules: AdRules) {
         var videoOnScreen = false
         var countdownOnScreen = false
         var storeExit: Candidate? = null
+        var pillExit: Candidate? = null
 
         windows.forEachIndexed { windowRank, window ->
             val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Boolean>>()
@@ -149,6 +150,15 @@ class CloseButtonFinder(private val rules: AdRules) {
                         }
                     }
 
+                    if (pillExit == null && labels.isEmpty() && !inWebView && looksLikeExitPill(node, window.bounds)) {
+                        val bounds = boundsOf(node)
+                        pillExit = Candidate(
+                            node, bounds, 0, false,
+                            "bouton en pastille sans libellé en haut ${cornerName(bounds, window.bounds)} (« Skip » / « Open Store »)",
+                            keyOf(node, bounds, labels), trapKey = "pastille en haut ${cornerName(bounds, window.bounds)}",
+                        )
+                    }
+
                     if (labels.any { rules.rewardResumePatterns.matchesFully(it) }) {
                         val bounds = boundsOf(node)
                         clickableTarget(node, screen)?.let { target ->
@@ -183,7 +193,7 @@ class CloseButtonFinder(private val rules: AdRules) {
         // Réveiller un mini-jeu n'a de sens que s'il attend un toucher : pas pendant une vidéo, ni
         // pendant un compte à rebours (le bouton viendra de lui-même à la fin).
         val wakeable = playable && !videoOnScreen && !countdownOnScreen
-        return best?.let { ScanResult.Found(it) } ?: ScanResult.Nothing(nodeCount, wakeable, storeExit)
+        return best?.let { ScanResult.Found(it) } ?: ScanResult.Nothing(nodeCount, wakeable, storeExit ?: pillExit)
     }
 
     /**
@@ -264,6 +274,8 @@ class CloseButtonFinder(private val rules: AdRules) {
         if (ratio in 0.6f..1.6f) score += 10
         if (isInCorner(bounds, windowBounds)) score += 15
         if (bounds.centerY() < windowBounds.top + windowBounds.height() * CORNER_RATIO_Y) score += 5
+        // Sans libellé, la croix est bien plus souvent à droite ; à gauche, c'est souvent le son.
+        if (!strong && bounds.centerX() > windowBounds.centerX()) score += 5
         if (inWebView) score -= 15
         if (windowRank == 0) score += 5
 
@@ -276,9 +288,13 @@ class CloseButtonFinder(private val rules: AdRules) {
         // ne recouvre ce point (vérifié à la fin du parcours, voir scan).
         if (target == null && !(inWebView && strong)) return null
 
+        // Icône sans libellé : sa taille et sa position l'identifient. « Icône à droite » seule ne
+        // suffit pas : une régie (BidMachine…) affiche des visuels très différents dans la même
+        // Activity, et la fausse croix de l'un ferait ignorer la vraie croix de tous les autres.
         val trapKey = node.viewIdResourceName?.substringAfter(":id/")
             ?: labels.firstOrNull()
-            ?: "icône ${cornerName(bounds, windowBounds)}"
+            ?: "icône ${cornerName(bounds, windowBounds)} ${bounds.width()}×${bounds.height()} " +
+            "@${bounds.left / TRAP_GRID_PX * TRAP_GRID_PX},${bounds.top / TRAP_GRID_PX * TRAP_GRID_PX}"
         return Candidate(
             target ?: node, bounds, score, strong, reason, keyOf(node, bounds, labels),
             trapKey = trapKey, inWebView = inWebView,
@@ -296,6 +312,26 @@ class CloseButtonFinder(private val rules: AdRules) {
             bounds.width() <= window.width() * 0.15f &&
             isInCorner(bounds, window) &&
             bounds.centerY() < window.top + window.height() * CORNER_RATIO_Y
+    }
+
+    /**
+     * Pastille native dans un coin du haut, dont le libellé est dessiné dans l'image : « Skip » ou
+     * « Open Store » des pubs vidéo BidMachine (à droite ou à gauche selon la pub), qui n'ont pas
+     * d'autre sortie. L'icône du son, carrée, n'en est pas une. On ne
+     * peut pas savoir ce qu'elle dit : elle sert de bouton de sortie « boutique », en dernier recours.
+     */
+    private fun looksLikeExitPill(node: AccessibilityNodeInfo, window: Rect): Boolean {
+        val cls = node.className?.toString().orEmpty()
+        if (!node.isClickable || !node.isEnabled) return false
+        if (!(cls.endsWith("ImageView") || cls.endsWith("ImageButton"))) return false
+        val b = boundsOf(node)
+        if (b.height() <= 0) return false
+        val ratio = b.width().toFloat() / b.height()
+        return ratio >= PILL_MIN_RATIO &&
+            b.width() <= window.width() * PILL_MAX_WIDTH_RATIO &&
+            (b.centerX() > window.right - window.width() * PILL_SIDE_RATIO ||
+                b.centerX() < window.left + window.width() * PILL_SIDE_RATIO) &&
+            b.centerY() < window.top + window.height() * PILL_TOP_RATIO
     }
 
     /** Le nœud s'il est cliquable, sinon un parent proche cliquable et petit, sinon null. */
@@ -336,6 +372,12 @@ class CloseButtonFinder(private val rules: AdRules) {
         private const val CORNER_RATIO_X = 0.25f
         private const val CORNER_RATIO_Y = 0.20f
         private const val MAX_PARENT_LEVELS = 3
+        /** Arrondi des positions dans les clés de pièges (une vue peut bouger de quelques pixels). */
+        private const val TRAP_GRID_PX = 8
+        private const val PILL_MIN_RATIO = 2.5f
+        private const val PILL_MAX_WIDTH_RATIO = 0.35f
+        private const val PILL_SIDE_RATIO = 0.35f
+        private const val PILL_TOP_RATIO = 0.12f
         private const val BLACKLIST_RADIUS_PX = 48.0
         private const val NEUTRAL_MAX_BUTTON_AREA = 0.25f
         private const val NEUTRAL_MARGIN_PX = 40

@@ -78,6 +78,7 @@ class AdSkipperAgent : Agent {
         var backTried = false
         var lastStatusLogAt = 0L
         val dryRunLogged = HashSet<String>()
+        val trapsLogged = HashSet<String>()
         /** Dernier instant où la fenêtre de la pub était à l'écran. */
         var lastAdVisibleAt = 0L
         var redirectsHandled = 0
@@ -320,6 +321,9 @@ class AdSkipperAgent : Agent {
         // Popup du Play Store posée sur une partie de la pub (fenêtre de la pub encore visible).
         if (handleForeignApp(s, now)) return scheduleTick(PAUSED_TICK_MS)
         s.lastAdVisibleAt = now
+        // Retour au jeu en cours (Play Store en train de se refermer…) : aucun appui, il pourrait
+        // tomber sur la fenêtre qui disparaît.
+        if (recovering) return scheduleTick(TICK_MS)
         if (now < s.nextActionAt) return scheduleTick(s.nextActionAt - now)
 
         val scanWindows = gameWindows.mapNotNull { w ->
@@ -331,8 +335,9 @@ class AdSkipperAgent : Agent {
         if (now - s.lastClickAt > CLICK_PHASE_MS) showPhase(s, AdPhase.SEARCHING)
         val adAge = now - s.startedAt
         val isTrap = { key: String ->
-            traps.isTrap(s.adActivity, key, adAge) ||
-                (adAge < TrapMemory.GRACE_MS && rules.isKnownEarlyTrap(s.adActivity, key))
+            (traps.isTrap(s.adActivity, key, adAge) ||
+                (adAge < TrapMemory.GRACE_MS && rules.isKnownEarlyTrap(s.adActivity, key)))
+                .also { trap -> if (trap && s.trapsLogged.add(key)) AgentLog.d("« $key » ignoré : piège connu pour cette pub") }
         }
         when (val result = finder.scan(scanWindows, s.blacklist, ignored, values.unlabeledButtons, isTrap)) {
             is ScanResult.RewardWarning -> onRewardWarning(s, result, values.dryRun)
@@ -552,7 +557,10 @@ class AdSkipperAgent : Agent {
         val now = now()
         val seconds = (now - s.startedAt) / 1000
         // On ne s'attribue la fermeture que si la pub a disparu peu après notre dernier clic.
-        val closedByUs = s.lastClickAt > 0 && now - s.lastClickAt < CLOSED_BY_US_WINDOW_MS
+        // Le bouton de sortie « boutique » ferme la pub en ouvrant la boutique : le retour au jeu
+        // qui suit prend quelques secondes de plus.
+        val closedByUs = (s.lastClickAt > 0 && now - s.lastClickAt < CLOSED_BY_US_WINDOW_MS) ||
+            (s.storeExits > 0 && now - s.lastStoreExitAt < STORE_EXIT_CLOSE_WINDOW_MS)
         when {
             // Une fausse croix a ouvert une autre appli : la pub a pu être écourtée (récompense perdue ?).
             s.hijacked -> AgentLog.w("Pub interrompue après $seconds s : une fausse croix a ouvert une autre appli")
@@ -790,6 +798,7 @@ class AdSkipperAgent : Agent {
         private const val STORE_EXIT_MIN_GAP_MS = 1_500L
         private const val MAX_STORE_EXITS = 3
         private const val EXPECT_STORE_MS = 8_000L
+        private const val STORE_EXIT_CLOSE_WINDOW_MS = 20_000L
         private const val PAUSED_TICK_MS = 1000L
         private const val WINDOWS_CHANGED_DELAY_MS = 150L
         private const val AD_GONE_CONFIRM_MS = 1000L

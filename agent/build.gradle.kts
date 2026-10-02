@@ -48,6 +48,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Même clé que la release quand elle est disponible : le Manager de debug s'installe
+            // par-dessus la version publiée (accessibilité conservée) et charge les Agents de debug.
+            if (releaseSigning != null) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             // Pas de R8 : il renommerait les classes que le Manager charge par leur nom.
             optimization {

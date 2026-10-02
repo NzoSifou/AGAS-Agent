@@ -62,8 +62,8 @@ cd AGAS-Agent
 ./gradlew assembleRelease      # agent/build/outputs/apk/release/agent-release.apk (signé)
 ```
 
-**Essayer une version de développement** avec un Manager de debug (signé avec la même clé de
-debug) :
+**Essayer une version de développement** avec un Manager de debug signé avec la même clé (la clé de
+release si `keystore.properties` est présent dans les deux projets, sinon la clé de debug) :
 
 ```bash
 adb push agent/build/outputs/apk/debug/agent-debug.apk /sdcard/Android/data/fr.nzosifou.agas/files/agent-dev.apk
@@ -111,8 +111,11 @@ Première version, extraite d'AGAS 1.0.
 
 - Anti-détournement : retour à la pub si un clic ou la pub elle-même ouvre le Play Store, un
   navigateur ou une autre appli, y compris à travers des redirections en chaîne.
-- Mémoire des pièges : un bouton qui a ouvert la boutique est évité pour ce type de pub.
+- Mémoire des pièges : un bouton qui a ouvert la boutique est évité pour ce type de pub. Une icône
+  sans libellé est mémorisée avec sa taille et sa position : la fausse croix d'un visuel ne fait plus
+  ignorer la vraie croix des autres visuels de la même régie (BidMachine).
 - Protection des récompenses (comptes à rebours, fenêtre « récompense perdue »).
+- Aucun appui pendant un retour au jeu (Play Store en train de se refermer).
 
 **Mini-jeux**
 
@@ -120,3 +123,6 @@ Première version, extraite d'AGAS 1.0.
   rebours).
 - Bouton de sortie « Google Play » / « Ouvrir la boutique » en dernier recours, puis fermeture de la
   popup du Play Store.
+- Pastilles sans libellé en haut à droite (« Skip » / « Open Store » dessinés dans l'image, pubs
+  vidéo BidMachine) reconnues comme bouton de sortie : la pub se ferme en ouvrant la boutique, AGAS
+  revient au jeu et la récompense est conservée.
