@@ -93,7 +93,7 @@ Structure du code (`agent/src/main/java/fr/nzosifou/agas/agent/`) :
 
 ## Changelog
 
-### [1.0.0] — non publiée
+### [1.0.0] — 2026-10-02
 
 Première version, extraite d'AGAS 1.0.
 
