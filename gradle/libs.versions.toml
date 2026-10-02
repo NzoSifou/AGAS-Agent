@@ -1,0 +1,15 @@
+[versions]
+agp = "9.4.0-alpha07"
+kotlin = "2.2.10"
+junit = "4.13.2"
+json = "20240303"
+
+[libraries]
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+# Implémentation JVM de org.json pour les tests unitaires (celle d'Android n'existe que sur l'appareil).
+json = { group = "org.json", name = "json", version.ref = "json" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }

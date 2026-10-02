@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AGAS Agent n'est jamais installé : AGAS Manager lit ce manifeste dans l'APK téléchargé (version,
+  signature, contrat) puis charge son code. Pas d'icône, pas d'écran, pas de permission.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:label="AGAS Agent" android:hasCode="true">
+        <meta-data
+            android:name="fr.nzosifou.agas.agent.API_VERSION"
+            android:value="${agentApiVersion}" />
+        <meta-data
+            android:name="fr.nzosifou.agas.agent.ENTRY_CLASS"
+            android:value="fr.nzosifou.agas.agent.AdSkipperAgent" />
+    </application>
+
+</manifest>
